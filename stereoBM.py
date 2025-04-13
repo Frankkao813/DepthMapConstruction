@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def compute_stereoBM(left_image_path, right_image_path, num_disparities=16, block_size=15):
+def compute_stereoBM(left_image_path, right_image_path, num_disparities=64, block_size=9):
     """
     Compute the disparity map using OpenCV's StereoBM algorithm.
     
@@ -43,11 +43,12 @@ def compute_stereoBM(left_image_path, right_image_path, num_disparities=16, bloc
     disparity_normalized = np.uint8(disparity_normalized)
 
     return disparity_normalized
+    #return disparity
 
 
 if __name__ == "__main__":
-    left_image_path = "source/1_left.jpg"   # Update with actual path
-    right_image_path = "source/1_right.jpg" # Update with actual path
+    left_image_path = "source/2_left.png"   # Update with actual path
+    right_image_path = "source/2_right.png" # Update with actual path
 
     # Compute the depth map using StereoBM
     depth_map = compute_stereoBM(left_image_path, right_image_path)

@@ -28,7 +28,7 @@ def compute_zncc_fast(left_img, right_img, window_size, max_disparity):
     std_L = np.sqrt(np.maximum(mean_L_sq - mean_L ** 2, 1e-5))
 
     for d in range(max_disparity):
-        # Shift right image to the left by d pixels
+        # shift right image to the left by d pixels, and then pad the pixel out of the range by 0
         shifted = np.zeros_like(right)
         if d > 0:
             shifted[:, d:] = right[:, :-d]
@@ -47,8 +47,8 @@ def compute_zncc_fast(left_img, right_img, window_size, max_disparity):
 
 
 
-left = cv2.imread('./source/1_left.jpg', cv2.IMREAD_GRAYSCALE)
-right = cv2.imread('./source/1_right.jpg', cv2.IMREAD_GRAYSCALE)
+left = cv2.imread('./source/2_left.png', cv2.IMREAD_GRAYSCALE)
+right = cv2.imread('./source/2_right.png', cv2.IMREAD_GRAYSCALE)
 show_images_side_by_side(left, right)
 
 # incoke the function
@@ -76,5 +76,5 @@ for i, (w, disp_map) in enumerate(zip(window_sizes, disparity_maps)):
     axes[i].set_title(f"Window Size: {w}")
     axes[i].axis('off')
 plt.tight_layout()
-plt.savefig("./result/zncc_faster_window_sizes.png")
+plt.savefig("./result/zncc_faster_window_sizes2.png")
 plt.show()
