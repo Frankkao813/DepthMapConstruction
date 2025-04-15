@@ -6,6 +6,46 @@ from utils import show_images_side_by_side
 import numpy as np
 import cv2
 
+# def compute_zncc_fast(left_img, right_img, window_size, max_disparity):
+#     """
+#     Fast ZNCC computation using convolution (cv2.filter2D)
+#     """
+#     assert left_img.shape == right_img.shape
+#     H, W = left_img.shape
+#     window_area = window_size ** 2
+#     pad = window_size // 2
+
+#     # Convert to float32 for precision and padding
+#     left = np.pad(left_img.astype(np.float32), pad, mode='constant')
+#     right = np.pad(right_img.astype(np.float32), pad, mode='constant')
+
+#     kernel = np.ones((window_size, window_size), dtype=np.float32) / window_area
+#     zncc_volume = np.zeros((H, W, max_disparity), dtype=np.float32)
+
+#     # Precompute left image statistics
+#     mean_L = cv2.filter2D(left, -1, kernel)[pad:-pad, pad:-pad]
+#     mean_L_sq = cv2.filter2D(left ** 2, -1, kernel)[pad:-pad, pad:-pad]
+#     std_L = np.sqrt(np.maximum(mean_L_sq - mean_L ** 2, 1e-5))
+
+#     for d in range(max_disparity):
+#         # shift right image to the left by d pixels, and then pad the pixel out of the range by 0
+#         shifted = np.zeros_like(right)
+#         if d > 0:
+#             shifted[:, d:] = right[:, :-d]
+#         else:
+#             shifted = right
+
+#         mean_R = cv2.filter2D(shifted, -1, kernel)[pad:-pad, pad:-pad]
+#         mean_R_sq = cv2.filter2D(shifted ** 2, -1, kernel)[pad:-pad, pad:-pad]
+#         std_R = np.sqrt(np.maximum(mean_R_sq - mean_R ** 2, 1e-5))
+
+#         prod = cv2.filter2D(left * shifted, -1, kernel)[pad:-pad, pad:-pad]
+#         zncc = (prod - mean_L * mean_R) / (std_L * std_R)
+#         zncc_volume[:, :, d] = zncc
+
+#     return zncc_volume
+
+
 def compute_zncc_fast(left_img, right_img, window_size, max_disparity):
     """
     Fast ZNCC computation using convolution (cv2.filter2D)
@@ -19,40 +59,38 @@ def compute_zncc_fast(left_img, right_img, window_size, max_disparity):
     left = np.pad(left_img.astype(np.float32), pad, mode='constant')
     right = np.pad(right_img.astype(np.float32), pad, mode='constant')
 
-    kernel = np.ones((window_size, window_size), dtype=np.float32) / window_area
+    sum = np.ones((window_size, window_size), dtype=np.float32)
+    mean = np.ones((window_size, window_size), dtype=np.float32) / window_area
     zncc_volume = np.zeros((H, W, max_disparity), dtype=np.float32)
+    
+    # Precompute image statistics
+    mean_L = cv2.filter2D(left, -1, mean)
+    std_L = cv2.filter2D((left - mean_L)**2, -1, sum)[pad:-pad, pad:-pad]
+    err_L = cv2.filter2D((left - mean_L), -1, sum)[pad:-pad, pad:-pad]
+    mean_R = cv2.filter2D(right, -1, mean)
+    std_R = cv2.filter2D((right - mean_L)**2, -1, sum)[pad:-pad, pad:-pad]
+    err_R = cv2.filter2D((right - mean_L), -1, sum)[pad:-pad, pad:-pad]
 
-    # Precompute left image statistics
-    mean_L = cv2.filter2D(left, -1, kernel)[pad:-pad, pad:-pad]
-    mean_L_sq = cv2.filter2D(left ** 2, -1, kernel)[pad:-pad, pad:-pad]
-    std_L = np.sqrt(np.maximum(mean_L_sq - mean_L ** 2, 1e-5))
+    shift = lambda arr: np.pad(arr, ((0, 0), (0, 1)), mode='constant')[:, 1:]
 
     for d in range(max_disparity):
-        # shift right image to the left by d pixels, and then pad the pixel out of the range by 0
-        shifted = np.zeros_like(right)
-        if d > 0:
-            shifted[:, d:] = right[:, :-d]
-        else:
-            shifted = right
+        std_R = shift(std_R)
+        err_R = shift(err_R)
+    
+        zncc = (err_L * err_R) / np.sqrt(std_L * std_R)
 
-        mean_R = cv2.filter2D(shifted, -1, kernel)[pad:-pad, pad:-pad]
-        mean_R_sq = cv2.filter2D(shifted ** 2, -1, kernel)[pad:-pad, pad:-pad]
-        std_R = np.sqrt(np.maximum(mean_R_sq - mean_R ** 2, 1e-5))
-
-        prod = cv2.filter2D(left * shifted, -1, kernel)[pad:-pad, pad:-pad]
-        zncc = (prod - mean_L * mean_R) / (std_L * std_R)
         zncc_volume[:, :, d] = zncc
 
+    print(f'meanl shape: {mean_L.shape}')
+    print(f'zncc shape: {zncc.shape}')
     return zncc_volume
-
-
 
 left = cv2.imread('./source/2_left.png', cv2.IMREAD_GRAYSCALE)
 right = cv2.imread('./source/2_right.png', cv2.IMREAD_GRAYSCALE)
 show_images_side_by_side(left, right)
 
 # incoke the function
-window_size = 5
+window_size = 15
 max_disparity = 64
 start_time = time.time()
 zncc_volume = compute_zncc_fast(left, right, window_size, max_disparity)
