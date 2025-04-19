@@ -87,10 +87,13 @@ def compute_zncc_fast(left_img, right_img, window_size, max_disparity):
 
 left = cv2.imread('./source/2_left.png', cv2.IMREAD_GRAYSCALE)
 right = cv2.imread('./source/2_right.png', cv2.IMREAD_GRAYSCALE)
+#left = cv2.imread('./dataset/Minoru3D/ActFigures/im0.png', cv2.IMREAD_GRAYSCALE)
+#right = cv2.imread('./dataset/Minoru3D/ActFigures/im1.png', cv2.IMREAD_GRAYSCALE)
+
 show_images_side_by_side(left, right)
 
 # incoke the function
-window_size = 15
+window_size = 2
 max_disparity = 64
 start_time = time.time()
 zncc_volume = compute_zncc_fast(left, right, window_size, max_disparity)

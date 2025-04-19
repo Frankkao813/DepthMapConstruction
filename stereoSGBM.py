@@ -1,0 +1,53 @@
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Load left and right rectified grayscale images
+# imgL = cv2.imread('source/2_left.png', cv2.IMREAD_GRAYSCALE)
+# imgR = cv2.imread('source/2_right.png', cv2.IMREAD_GRAYSCALE)
+imgL = cv2.imread('./dataset/Minoru3D/ActFigures/im0.png', cv2.IMREAD_GRAYSCALE)
+imgR = cv2.imread('./dataset/Minoru3D/ActFigures/im1.png', cv2.IMREAD_GRAYSCALE)
+
+#imgL = cv2.imread('source/1_left.jpg', cv2.IMREAD_GRAYSCALE)
+#imgR = cv2.imread('source/1_right.jpg', cv2.IMREAD_GRAYSCALE)
+
+# Check if images loaded properly
+if imgL is None or imgR is None:
+    raise IOError("Could not load the input images.")
+
+# Set SGBM parameters
+window_size = 2  # Matching block size
+min_disp = 0
+num_disp = 16 * 6  # Must be divisible by 16
+block_size = window_size
+
+stereo = cv2.StereoSGBM_create(
+    minDisparity=min_disp,
+    numDisparities=num_disp,
+    blockSize=block_size,
+    P1=8 * 1 * window_size**2,
+    P2=32 * 1 * window_size**2,
+    disp12MaxDiff=1,
+    uniquenessRatio=10,
+    speckleWindowSize=100,
+    speckleRange=32,
+    preFilterCap=63,
+    mode=cv2.STEREO_SGBM_MODE_SGBM_3WAY
+)
+
+# Compute disparity (16-bit signed fixed point. Divide by 16 to get float)
+disparity = stereo.compute(imgL, imgR).astype(np.float32) / 16.0
+
+# Normalize the disparity for visualization
+disp_vis = cv2.normalize(disparity, None, 0, 255, cv2.NORM_MINMAX)
+disp_vis = np.uint8(disp_vis)
+
+# Show the result
+plt.figure(figsize=(10, 4))
+plt.imshow(disp_vis, cmap='plasma')
+plt.colorbar(label='Disparity')
+plt.title('Disparity Map (SGBM)')
+plt.axis('off')
+plt.imsave("disp_vis.png", disp_vis)
+plt.show()
+
