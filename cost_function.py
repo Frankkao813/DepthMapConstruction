@@ -267,7 +267,7 @@ def parabolic_subpixel_refinement(cost_volume):
 
     return refined_disparity
 
-def filter_disparity_curves(cost_volume, disparity_map, peak_threshold=0.8, dynamic_range_threshold=0.01, min_peak_prominence=0.05):
+def filter_disparity_curves(cost_volume, disparity_map, peak_threshold=0.8, dynamic_range_threshold=0.5, min_peak_prominence=0.05):
     """
     Filter disparity curves based on maximum cost value, dynamic range, and true multi-peak suppression.
 
@@ -309,18 +309,18 @@ def filter_disparity_curves(cost_volume, disparity_map, peak_threshold=0.8, dyna
     disparity_map[~valid_mask] = 0
 
     # Print statistics
-    total_pixels = H * W
-    failed_peak = np.sum(~condition_peak)
-    failed_dynamic_range = np.sum(~condition_dynamic_range)
+    # total_pixels = H * W
+    # failed_peak = np.sum(~condition_peak)
+    # failed_dynamic_range = np.sum(~condition_dynamic_range)
     # failed_multi_peak = np.sum(~multi_peak_mask)
 
-    print(f"--- Filtering Statistics ---")
-    # print(f"Total pixels: {total_pixels}")
-    print(f"Failed peak threshold: {failed_peak} ({failed_peak / total_pixels:.2%})")
-    print(f"Failed dynamic range: {failed_dynamic_range} ({failed_dynamic_range / total_pixels:.2%})")
-    # print(f"Failed multi-peak check: {failed_multi_peak} ({failed_multi_peak / total_pixels:.2%})")
-    print(f"Final valid pixels: {np.sum(valid_mask)} ({np.sum(valid_mask) / total_pixels:.2%})")
-    # print("-----------------------------")
+    # print(f"--- Filtering Statistics ---")
+    # # print(f"Total pixels: {total_pixels}")
+    # print(f"Failed peak threshold: {failed_peak} ({failed_peak / total_pixels:.2%})")
+    # print(f"Failed dynamic range: {failed_dynamic_range} ({failed_dynamic_range / total_pixels:.2%})")
+    # # print(f"Failed multi-peak check: {failed_multi_peak} ({failed_multi_peak / total_pixels:.2%})")
+    # print(f"Final valid pixels: {np.sum(valid_mask)} ({np.sum(valid_mask) / total_pixels:.2%})")
+    # # print("-----------------------------")
 
     return disparity_map
 
@@ -475,6 +475,148 @@ def image_preprocessing(img):
     
     return enhanced
 
+def visualize_zncc_curve_and_matching(left_img, right_img, zncc_volume, x, y):
+    """
+    Visualize the ZNCC matching curve and the corresponding matching pixel positions 
+    in the left and right images for a given pixel (x, y).
+
+    Args:
+        left_img (np.ndarray): Left image (grayscale).
+        right_img (np.ndarray): Right image (grayscale).
+        zncc_volume (np.ndarray): Precomputed ZNCC cost volume, shape (H, W, max_disparity).
+        x (int): x-coordinate of the selected pixel in the left image.
+        y (int): y-coordinate of the selected pixel in the left image.
+    """
+
+    # Extract the ZNCC curve for the selected pixel (y, x)
+    curve = zncc_volume[y, x, :]  # Shape: (max_disparity,)
+
+    # Find the disparity with the maximum ZNCC similarity (i.e., the best match)
+    best_disparity = np.argmax(curve)
+
+    # Create a figure with three subplots: left image, right image, and ZNCC curve
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+
+    # --- Left image ---
+    ax_left = axes[0]
+    ax_left.imshow(left_img, cmap='gray')
+    ax_left.scatter(x, y, s=100, c='red', marker='x')  # Highlight the selected pixel
+    ax_left.set_title(f'Left Image\nSelected Pixel (x={x}, y={y})')
+    ax_left.axis('off')
+
+    # --- Right image ---
+    ax_right = axes[1]
+    ax_right.imshow(right_img, cmap='gray')
+    disparities = np.arange(len(curve))
+    for d in disparities:
+        x_shift = x + d  # Note: shifting to simulate matching in right image
+        if 0 <= x_shift < right_img.shape[1]:  # Ensure the shifted position is within bounds
+            # Scatter each shifted pixel; highlight the best disparity
+            ax_right.scatter(x_shift, y, s=30, alpha=0.5, 
+                             label=f'd={d}' if d == best_disparity else None)
+    
+    ax_right.set_title('Right Image\nMatching Positions')
+    ax_right.axis('off')
+
+    # --- ZNCC Curve ---
+    ax_curve = axes[2]
+    ax_curve.plot(np.arange(len(curve)), curve, marker='o')
+    ax_curve.axvline(best_disparity, color='red', linestyle='--', label=f'Best d={best_disparity}')
+    ax_curve.set_title('ZNCC Curve')
+    ax_curve.set_xlabel('Disparity')
+    ax_curve.set_ylabel('ZNCC Similarity')
+    ax_curve.grid(True)
+    ax_curve.set_ylim([-1.1, 1.1])  # ZNCC range is typically [-1, 1]
+    ax_curve.legend()
+
+    # Adjust layout to avoid overlapping
+    plt.tight_layout()
+    plt.show()
+
+    return
+
+def extract_and_visualize_patches(left_img, right_img, zncc_volume, x, y, window_size=5, disparities=None):
+    """
+    Extract patches from the left and right images around a given pixel (x, y),
+    visualize the matching patches across disparities, show ZNCC scores, 
+    and highlight the best matching disparity.
+
+    Args:
+        left_img (np.ndarray): Left image (grayscale).
+        right_img (np.ndarray): Right image (grayscale).
+        zncc_volume (np.ndarray): Precomputed ZNCC cost volume, with shape (H, W, max_disparity).
+        x (int): x-coordinate of the selected pixel in the left image.
+        y (int): y-coordinate of the selected pixel in the left image.
+        window_size (int): Size of the extracted patches (must be odd).
+        disparities (list or None): List of disparities to visualize (if None, use all disparities).
+    """
+    half_w = window_size // 2
+    H, W = left_img.shape[:2]
+    D = zncc_volume.shape[2]
+
+    if disparities is None:
+        disparities = np.arange(D)
+
+    # Safety check: make sure the left patch is within image bounds
+    if (y-half_w < 0) or (y+half_w >= H) or (x-half_w < 0) or (x+half_w >= W):
+        raise ValueError("Left patch extraction out of image bounds!")
+    
+    # Initialize variables for consistent intensity scaling across all patches
+    vmin = 255
+    vmax = 0
+
+    # Extract the patch from the left image
+    left_patch = left_img[y-half_w:y+half_w+1, x-half_w:x+half_w+1]
+    vmin = min(left_patch.min(), vmin)
+    vmax = max(left_patch.max(), vmax)
+
+    # Find the best matching disparity based on maximum ZNCC value
+    best_disparity = np.argmax(zncc_volume[y, x, :])
+    print("Best disparity:", best_disparity)
+
+    # Extract corresponding patches from the right image for each disparity
+    right_patches = []
+    for d in disparities:
+        x_shift = x + d  # Note: matching pixel in the right image is at x + d
+        if (x_shift - half_w >= 0) and (x_shift + half_w < W):
+            patch = right_img[y-half_w:y+half_w+1, x_shift-half_w:x_shift+half_w+1]
+            vmin = min(patch.min(), vmin)
+            vmax = max(patch.max(), vmax)
+            zncc_score = zncc_volume[y, x, d]
+            right_patches.append((d, patch, zncc_score))
+        else:
+            right_patches.append((d, None, None))  # Mark as out-of-bounds if cannot extract patch
+
+    # Set up the figure for visualization
+    n = len(disparities) + 1  # +1 for the left patch
+    fig, axes = plt.subplots(1, n, figsize=(3*n, 3))
+
+    # Add a global title indicating pixel location and best matching disparity
+    fig.suptitle(f"Patch Matching Visualization at (x={x}, y={y}, best match={best_disparity})", fontsize=16)
+    
+    # Visualize the left patch
+    if left_patch.ndim == 2:
+        axes[0].imshow(left_patch, cmap='gray', vmin=vmin, vmax=vmax)
+    axes[0].set_title(f'Left Patch\n(x={x}, y={y})')
+    axes[0].axis('off')
+
+    # Visualize each extracted right patch
+    for i, (d, patch, score) in enumerate(right_patches):
+        ax = axes[i+1]
+        if patch is not None:
+            ax.imshow(patch, cmap='gray', vmin=vmin, vmax=vmax)
+            ax.set_title(f'Right Patch\nd={d}\nZNCC={score:.2f}')
+        else:
+            ax.set_title(f'd={d}\nOut of bounds')
+            ax.axis('off')
+        ax.axis('off')
+
+    # Adjust layout to avoid overlap between subplots
+    plt.tight_layout()
+    plt.show()
+
+    return
+
 def get_depth_map(left_img, right_img, mode="ncc", window_size=7, max_disparity=40):
     """
     Compute depth map using ZNCC cost volume and parabolic subpixel refinement.
@@ -494,11 +636,28 @@ def get_depth_map(left_img, right_img, mode="ncc", window_size=7, max_disparity=
     process_left_image = image_preprocessing(left_img)
     process_right_image = image_preprocessing(right_img)
 
-    cost_volume = compute_zncc(process_left_image, process_right_image, window_size, max_disparity)
+    peak_threshold = 0.8
+    dynamic_range_threshold = 0.5
+    if mode == "zncc":
+        cost_volume = compute_zncc(process_left_image, process_right_image, window_size, max_disparity)
+        peak_threshold = 0.85
+        dynamic_range_threshold = 0.5
+    elif mode == "ncc":
+        cost_volume = compute_ncc(process_left_image, process_right_image, window_size, max_disparity)
+        peak_threshold = 0.8
+        dynamic_range_threshold = 0.02
+    # elif mode == "ssd":
+    #     cost_volume = compute_ssd(process_left_image, process_right_image, window_size, max_disparity)
+    else:
+        raise ValueError("Unknown mode. Choose from 'zncc', 'ncc', or 'ssd'.")
+
+    # visualize_zncc_curve_and_matching(left_img, right_img, cost_volume, x=455, y=150)
+    # extract_and_visualize_patches(left_img, right_img, cost_volume, x=455, y=150, window_size=window_size, disparities=range(40, 80, 2))
 
     # Parabolic subpixel refinement
+    # refined_disparity = np.argmax(cost_volume, axis=2)
     refined_disparity = parabolic_subpixel_refinement(cost_volume)
-    refined_disparity = filter_disparity_curves(cost_volume, refined_disparity, peak_threshold=0.85, dynamic_range_threshold=0.5)
+    refined_disparity = filter_disparity_curves(cost_volume, refined_disparity, peak_threshold=peak_threshold, dynamic_range_threshold=dynamic_range_threshold)
 
     wls_filter = cv2.ximgproc.createDisparityWLSFilterGeneric(False)
     filled_disparity = wls_filter.filter(refined_disparity, left_img)
