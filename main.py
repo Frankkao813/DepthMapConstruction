@@ -59,7 +59,7 @@ def process_stereo_pairs(root_folder, output_folder):
                         
                         # Save output using small folder name
                         output_path = os.path.join(output_folder, f"{small_folder}_{mode}_w{window_size}_d{max_disparity}.png")
-                        # visualize_depth_with_nodata(left_img, depth_map, filled_depth_map, destination=output_path)
+                        visualize_depth_with_nodata(left_img, depth_map, filled_depth_map, destination=output_path)
                         # print(f"Saved: {output_path}")
     return
 

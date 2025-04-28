@@ -3,8 +3,8 @@ import cv2
 from numpy.lib.stride_tricks import sliding_window_view
 from matplotlib.cm import ScalarMappable
 import matplotlib.pyplot as plt
-from utils import show_images_side_by_side
-from scipy.signal import find_peaks
+# from utils import show_images_side_by_side
+# from scipy.signal import find_peaks
 import cv2.ximgproc
 
 # def compute_zncc(left_img, right_img, window_size, max_disparity):
@@ -651,8 +651,10 @@ def get_depth_map(left_img, right_img, mode="ncc", window_size=7, max_disparity=
     else:
         raise ValueError("Unknown mode. Choose from 'zncc', 'ncc', or 'ssd'.")
 
-    # visualize_zncc_curve_and_matching(left_img, right_img, cost_volume, x=455, y=150)
-    # extract_and_visualize_patches(left_img, right_img, cost_volume, x=455, y=150, window_size=window_size, disparities=range(40, 80, 2))
+    # Visualize the cost volume for a specific pixel
+    # x, y = 455, 150
+    # visualize_zncc_curve_and_matching(left_img, right_img, cost_volume, x=x, y=y)
+    # extract_and_visualize_patches(left_img, right_img, cost_volume, x=x, y=y, window_size=window_size, disparities=range(40, 80, 2))
 
     # Parabolic subpixel refinement
     # refined_disparity = np.argmax(cost_volume, axis=2)
@@ -661,6 +663,5 @@ def get_depth_map(left_img, right_img, mode="ncc", window_size=7, max_disparity=
 
     wls_filter = cv2.ximgproc.createDisparityWLSFilterGeneric(False)
     filled_disparity = wls_filter.filter(refined_disparity, left_img)
-    # show_images_side_by_side(left_img, refined_disparity)
 
     return refined_disparity, filled_disparity
