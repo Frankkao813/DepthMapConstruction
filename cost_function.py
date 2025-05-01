@@ -6,70 +6,9 @@ import matplotlib.pyplot as plt
 # from utils import show_images_side_by_side
 # from scipy.signal import find_peaks
 import cv2.ximgproc
+from numba import njit
 
-# def compute_zncc(left_img, right_img, window_size, max_disparity):
-#     """
-#     Approximate ZNCC (Zero-mean Normalized Cross-Correlation) computation between two images,
-#     using filter2D convolution for efficiency.
 
-#     Note: This version is **not strictly mathematically correct** because it
-#     assumes each pixel can have its own local mean,
-#     instead of using a single mean per window patch.
-
-#     Args:
-#         left_img (np.ndarray): Left grayscale image (H, W).
-#         right_img (np.ndarray): Right grayscale image (H, W).
-#         window_size (int): Local window size (should be odd, e.g., 3, 5, 7).
-#         max_disparity (int): Maximum disparity (maximum horizontal shift).
-
-#     Returns:
-#         np.ndarray: Approximate ZNCC cost volume of shape (H, W, max_disparity).
-#     """
-#     assert left_img.shape == right_img.shape, "Input images must have the same shape"
-#     H, W = left_img.shape
-#     pad = window_size // 2
-
-#     # Preprocess: convert images to float32 and apply 'reflect' padding
-#     left = np.pad(left_img.astype(np.float32), pad, mode='reflect')
-#     right = np.pad(right_img.astype(np.float32), pad, mode='reflect')
-
-#     # Define convolution kernels
-#     mean_kernel = np.ones((window_size, window_size), dtype=np.float32) / (window_size ** 2)
-#     sum_kernel = np.ones((window_size, window_size), dtype=np.float32)
-
-#     # Precompute left image mean, zero-mean version, and variance (std squared)
-#     mean_L = cv2.filter2D(left, -1, mean_kernel)        # Local mean over window
-#     zero_mean_L = left - mean_L                         # Subtract mean pixel-wise
-#     std_L = cv2.filter2D(zero_mean_L ** 2, -1, sum_kernel)[pad:-pad, pad:-pad]  # Local variance
-
-#     # Initialize ZNCC volume
-#     zncc_volume = np.zeros((H, W, max_disparity), dtype=np.float32)
-
-#     # Loop over each disparity level
-#     for d in range(max_disparity):
-#         # 1. Shift the right image d pixels to the left
-#         right_shifted = np.pad(right[:, d:], ((0, 0), (0, d)), mode='constant')
-
-#         # 2. Compute mean, zero-mean, and variance for shifted right image
-#         mean_R = cv2.filter2D(right_shifted, -1, mean_kernel)    # Local mean after shift
-#         zero_mean_R = right_shifted - mean_R
-#         std_R = cv2.filter2D(zero_mean_R ** 2, -1, sum_kernel)[pad:-pad, pad:-pad]
-
-#         # 3. Compute the numerator: sum of element-wise products
-#         numerator = cv2.filter2D(zero_mean_L * zero_mean_R, -1, sum_kernel)[pad:-pad, pad:-pad]
-
-#         # 4. Compute the denominator: product of left and right standard deviations
-#         denominator = np.sqrt(std_L * std_R)
-
-#         # 5. Safe division to avoid division by zero
-#         zncc = np.zeros_like(denominator)
-#         valid = denominator > 1e-6
-#         zncc[valid] = numerator[valid] / denominator[valid]
-
-#         # Store the ZNCC score for disparity d
-#         zncc_volume[:, :, d] = zncc
-
-#     return zncc_volume
 
 def compute_zncc(left_img, right_img, window_size, max_disparity):
     """
