@@ -27,7 +27,7 @@ def process_stereo_pairs(root_folder, output_folder):
 
         # Now traverse small folders inside each middle folder
         for small_folder in os.listdir(middle_path):
-            for mode in ["zncc"]:
+            for mode in ["ncc", "zncc"]:
                 for window_size in [15]:
                     for max_disparity in [80]:
 
